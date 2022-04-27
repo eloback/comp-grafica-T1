@@ -1,206 +1,224 @@
-#include <GL/glut.h>  
-
 #include <iostream>
-#include <GL/freeglut.h>
+#include <fstream>
+#include <sstream>
 #include <vector>
+#include <GL/freeglut.h>
+#include <string>
+using namespace std;
 
-struct Vector3
-{
-	float x, y, z;
-
-	Vector3(float x, float y, float z) : x(x), y(y), z(z) {}
-	Vector3() : x(0), y(0), z(0) {}
+struct vec3 {
+    float x, y, z;
 };
 
-using vertex = Vector3;
-using color = Vector3;
-
-class CubeFace {
-public:
-	std::vector<vertex> vertices;
-	color faceColor;
-	CubeFace(std::vector<vertex> vertices, color faceColor) {
-		this->vertices = vertices;
-		this->faceColor = faceColor;
-	}
+struct vec2 {
+    float x, y;
 };
 
-class Cube {
-	std::vector<CubeFace> faces;
-	vertex position;
-	float size;
-	double angle;
-	double rotation_matrix[3][3];
-
-public:
-	Cube(float size, vertex position);
-	void draw();
-	void rotate(double angle, vertex axis);
-	void translate(vertex position);
+struct ivec3 {
+    int v, t, n;
 };
 
-void display();
-void idle();
-void reshape(int width, int height);
-void keyboard(unsigned char key, int x, int y);
-void keyboard_special(int key, int x, int y);
+//globals
+std::vector <vec3> vertices;
+std::vector <vec2> textCoords;
+std::vector <vec3> normals;
 
-Cube cube = Cube(3.0, Vector3(0.0f, 0.0f, 0.0f));
+std::vector < std::vector <ivec3> > faces;
+unsigned int _model;
+float rot;
 
-int delay = 10;
+vec3 diferrence(vec3 a, vec3 b) {
+    return vec3{ a.x - b.x, a.y - b.y, a.z - b.z };
+}
 
-void initGL() {
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f); //Coloca a cor de background para preto e opaco
-	glClearDepth(1.0f);                   // Define o buffer de profundidade para o mais distante possível
-	//glOrtho(0, 256, 0, 256, -1, 1);
-	glEnable(GL_DEPTH_TEST);   // Habilita o culling de profundidade
-	//glDepthFunc(GL_LEQUAL);    // Define o tipo de teste de profundidade
+vec3 sum(vec3 a, vec3 b) {
+    return vec3{ a.x + b.x, a.y + b.y, a.z + b.z };
+}
+
+void calcNormals() {
+    for (int i = 0; i < faces.size(); i++) {
+        vector<ivec3> face = faces[i];
+        vec3 v1 = vertices[face[0].v];
+        vec3 v2 = vertices[face[1].v];
+        vec3 v3 = vertices[face[2].v];
+        vec3 edge = diferrence(v2, v1);
+        vec3 edge2 = diferrence(v3, v1);
+        vec3 normal = vec3{ edge.y * edge2.z - edge.z * edge2.y, edge.z * edge2.x - edge.x * edge2.z, edge.x * edge2.y - edge.y * edge2.x };
+        normal = vec3{ normal.x / sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z), normal.y / sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z), normal.z / sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z) };
+		
+        //cout << "face :" << v1.x << ", " << v1.y << ", " << v1.z <<"; "<< v2.x << ", " << v2.y << ", " << v2.z <<"; "<< v3.x << ", " << v3.y << ", " << v3.z << endl;
+        for (int j = 0; j < face.size(); j++) {
+            ivec3 vertex = face[j];
+          /*  cout << vertex.n << endl;
+            cout<<"normal: "<<normals[vertex.n].x << ", " << normals[vertex.n].y << ", " << normals[vertex.n].z << endl;*/
+        }
+    }
 }
 
 
-void display() {
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glLoadIdentity();
+std::vector<string> split(string str, char delimiter) {
+    std::vector<string> internal;
+    stringstream ss(str); // Turn the string into a stream.
+    string tok;
 
-	glTranslatef(0.0f, 0.0f, -15.0f);
-	cube.translate(vertex(-6.0, -5.0, 0));
-	cube.draw();
+    while (getline(ss, tok, delimiter)) {
+        // evades delimiter if it is used in sequence
+        if (tok.size() > 0) {
+            internal.push_back(tok);
+        }
+    }
 
-	glutSwapBuffers();
+    return internal;
+}
+
+void createFace(string line) {
+    //std::cout << line << endl;
+	std::vector<std::string> tokens = split(line, ' ');
+	const int size = tokens.size();
+    vector<ivec3> face;
+    for (int i = 1; i < size; i++) {
+        //std::cout << tokens[i] << endl;
+        std::vector<std::string> sVertex = split(tokens[i], '/');
+		int sVertexSize = sVertex.size();
+        if (sVertexSize == 2) {
+            face.push_back(ivec3{ stoi(sVertex[0]) - 1, 0, stoi(sVertex[1]) - 1 });
+        }
+        else face.push_back(ivec3{ stoi(sVertex[0]) - 1, stoi(sVertex[1]) - 1, stoi(sVertex[2]) - 1 });
+        //std::cout << "vertex: " << face[i-1].v << ", "<<face[i-1].t<<", " <<face[i - 1].n << endl;
+    }
+    //std::cout << endl;
+    faces.push_back(face);
 }
 
 
-//Função de redesenhou prioriza o aspecto da projeção
-void reshape(int width, int height) {
-	glViewport(0, 0, width, height);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(60, 1, 2.0, 50.0);
-	glMatrixMode(GL_MODELVIEW);
+vec2 parseVector2(string line) {
+	std::vector<std::string> tokens = split(line, ' ');
+	return vec2{ stof(tokens[1]), stof(tokens[2]) };
+}
+
+vec3 parseVector3(string line) {
+	std::vector<std::string> tokens = split(line, ' ');
+	return vec3{ stof(tokens[1]), stof(tokens[2]), stof(tokens[3]) };
 }
 
 
-int main(int argc, char** argv) {
+void loadObj(std::string fileName) {
+    _model = glGenLists(1);
+    glPointSize(2.0);
+    std::ifstream file;
+    file.open(fileName.c_str());
 
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
+    std::string line;
+    if (file.is_open())
+    {
+        while (file.good())
+        {
+            getline(file, line);
 
-	glutInitWindowSize(640, 480);
-	glutInitWindowPosition(50, 50);
+            unsigned int lineLength = line.length();
 
+            //cout << line << endl;
 
-	glutCreateWindow("3D Shapes");
+            if (lineLength < 2)
+                continue;
 
-	glutDisplayFunc(display);
-	glutReshapeFunc(reshape);
-	initGL();
-	glutMainLoop();
-	return 0;
+            const char* lineCStr = line.c_str();
+            switch (lineCStr[0])
+            {
+            case 'v':
+                if (lineCStr[1] == 't')
+                    textCoords.push_back(parseVector2(line));
+                else if (lineCStr[1] == 'n') {
+                    normals.push_back(parseVector3(line));
+                }
+                else if (lineCStr[1] == ' ' || lineCStr[1] == '\t')
+                    vertices.push_back(parseVector3(line));
+                break;
+            case 'f':
+                createFace(line);
+			break;
+            default: break;
+            };
+        }
+    }
+    else
+    {
+        std::cerr << "Unable to load mesh: " << fileName << std::endl;
+    }
+    cout << "Loaded" << endl;
+	
+    //calcNormals();
+
+    cout << "normals calculated" << endl;
+    glNewList(_model, GL_COMPILE);
+    {
+        glPushMatrix();
+        glBegin(GL_TRIANGLES);
+        for (int i = 0; i < faces.size(); i++) {
+            vec3 v1 = vertices[faces[i][0].v];
+			vec3 v2 = vertices[faces[i][1].v];
+			vec3 v3 = vertices[faces[i][2].v];
+			glVertex3f(v1.x, v1.y, v1.z);
+			glVertex3f(v2.x, v2.y, v2.z);
+			glVertex3f(v3.x, v3.y, v3.z);
+        }
+        glEnd();
+		glPopMatrix();
+    }
+    glEndList();
+	cout<< "list created" << endl;
 }
 
-Cube::Cube(float size, vertex position)
+
+void reshape(int w, int h)
 {
-	this->size = size;
-	this->angle = 0;
-	this->position = position;
+    glViewport(0, 0, w, h);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(60, (GLfloat)w / (GLfloat)h, 0.1, 3000.0);
 
-	float angle = 0;
-	float passo_angulo = ((360 / float(4)) * 3.1416) / 180.0;
-
-	float apothem = size / (2 * tan(3.1416 / float(4)));
-	position.x -= size / 2.0;
-	position.y -= apothem;
-	
-	//front
-	std::vector<vertex> front_vertices;
-	front_vertices.push_back(vertex(position.x, position.y, position.z));
-	front_vertices.push_back(vertex(position.x + size, position.y, position.z));
-	front_vertices.push_back(vertex(position.x + size, position.y + apothem, position.z));
-	front_vertices.push_back(vertex(position.x, position.y + apothem, position.z));
-	faces.push_back(CubeFace(front_vertices, color(1.0, 0.0, 0.0)));
-	
-	//back
-	std::vector<vertex> back_vertices;
-	back_vertices.push_back(vertex(position.x, position.y, position.z + size));
-	back_vertices.push_back(vertex(position.x + size, position.y, position.z + size));
-	back_vertices.push_back(vertex(position.x + size, position.y + apothem, position.z + size));
-	back_vertices.push_back(vertex(position.x, position.y + apothem, position.z + size));
-	faces.push_back(CubeFace(back_vertices, color(0.0, 1.0, 0.0)));
-	
-	//left
-	std::vector<vertex> left_vertices;
-	left_vertices.push_back(vertex(position.x, position.y, position.z));
-	left_vertices.push_back(vertex(position.x, position.y, position.z + size));
-	left_vertices.push_back(vertex(position.x, position.y + apothem, position.z + size));
-	left_vertices.push_back(vertex(position.x, position.y + apothem, position.z));
-	faces.push_back(CubeFace(left_vertices, color(0.0, 0.0, 1.0)));
-	
-	//right
-	std::vector<vertex> right_vertices;
-	right_vertices.push_back(vertex(position.x + size, position.y, position.z));
-	right_vertices.push_back(vertex(position.x + size, position.y, position.z + size));
-	right_vertices.push_back(vertex(position.x + size, position.y + apothem, position.z + size));
-	right_vertices.push_back(vertex(position.x + size, position.y + apothem, position.z));
-	faces.push_back(CubeFace(right_vertices, color(1.0, 1.0, 0.0)));
-	
-	//top
-	std::vector<vertex> top_vertices;
-	top_vertices.push_back(vertex(position.x, position.y + apothem, position.z));
-	top_vertices.push_back(vertex(position.x + size, position.y + apothem, position.z));
-	top_vertices.push_back(vertex(position.x + size, position.y + apothem, position.z + size));
-	top_vertices.push_back(vertex(position.x, position.y + apothem, position.z + size));
-	faces.push_back(CubeFace(top_vertices, color(1.0, 0.0, 1.0)));
-	
-	//bottom
-	std::vector<vertex> bottom_vertices;
-	bottom_vertices.push_back(vertex(position.x, position.y, position.z));
-	bottom_vertices.push_back(vertex(position.x + size, position.y, position.z));
-	bottom_vertices.push_back(vertex(position.x + size, position.y, position.z + size));
-	bottom_vertices.push_back(vertex(position.x, position.y, position.z + size));
-	faces.push_back(CubeFace(bottom_vertices, color(0.0, 1.0, 1.0)));
-	
-	
+    glMatrixMode(GL_MODELVIEW);
+}
+void draw()
+{
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glPushMatrix();
+    glTranslatef(0, -40.00, -105);
+    glColor3f(1.0, 0.23, 0.27);
+    glScalef(0.4, 0.4, 0.4);
+    glRotatef(rot, 0, 1, 0);
+    glCallList(_model);
+    glPopMatrix();
+    rot = rot + 0.6;
+    if (rot > 360) rot = rot - 360;
+}
+void display(void)
+{
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glLoadIdentity();
+    draw();
+    glutSwapBuffers();
 }
 
-void Cube::draw()
-{
-	glTranslatef(0.0, 0.0, -5.0);
-
-	// draw each face of cube
-	for (auto face : this->faces)
-	{
-		glColor3f(face.faceColor.x,face.faceColor.y, face.faceColor.z);
-		glBegin(GL_QUADS);
-		for (auto vertex : face.vertices)
-		{
-			glVertex3f(vertex.x, vertex.y, vertex.z);
-		}
-		glEnd();
-	}
+void timer(int value) {
+    glutPostRedisplay();
+    glutTimerFunc(10, timer, 0);
 }
 
-void Cube::rotate(double angle, vertex axis)
+int main(int argc, char** argv)
 {
-	// rotate cube without glRotatef
-	
-	
-}
-
-void Cube::translate(vertex position)
-{
-	vertex newPosition;
-	newPosition.x = this->position.x + position.x * cos(cube.angle);
-	newPosition.y = this->position.y + position.y * cos(cube.angle);
-	newPosition.z = this->position.z + position.z * cos(cube.angle);
-	
-	for (auto& face : this->faces)
-	{
-		for (auto& vertex : face.vertices)
-		{
-			vertex.x += position.x;
-			vertex.y += position.y;
-			vertex.z += position.z;
-		}
-	}
-
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glutInitWindowSize(800, 450);
+    glutInitWindowPosition(20, 20);
+    glutCreateWindow("Carregar OBJ");
+    glutReshapeFunc(reshape);
+    glutDisplayFunc(display);
+    glutTimerFunc(10, timer, 0);
+    loadObj("data/mba1.obj");
+    glutMainLoop();
+    return 0;
 }
