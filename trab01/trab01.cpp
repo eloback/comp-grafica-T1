@@ -1,10 +1,11 @@
 /*
 author: Eduardo Loback, Enzo Redivo
+repo: https://github.com/eloback/comp-grafica-T1
+
 
 TODO:
     * camera movement.
     * texture load.
-    * other lights
 */
 
 #include <iostream>
