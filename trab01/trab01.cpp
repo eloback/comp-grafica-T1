@@ -3,7 +3,7 @@ author: Eduardo Loback, Enzo Redivo
 
 TODO:
     * camera movement.
-	* texture load.
+    * texture load.
     * other lights
 */
 
@@ -35,9 +35,13 @@ float scale = 0.4;
 vec3 mov{ 0, -20, -105 };
 vec3 cam{ 0, 0, 0 };
 vec3 vr{ 0, 1, 0 };
-enum mode { perpective=0, movement=1, rotation=2 };
+enum mode { perpective = 0, movement = 1, rotation = 2, lightDir = 3, lightPos = 4 };
 mode actual = movement;
 bool rotating = true;
+bool spotlight = false;
+bool activeLights[3] = { true, false, false };
+GLfloat _light_position[4];
+GLfloat _spotlight_position[3];
 
 std::vector < std::vector <ivec3> > faces;
 unsigned int _model;
@@ -61,6 +65,7 @@ void createList();
 void loadObj(std::string fileName);
 void reshape(int w, int h);
 void draw();
+void light();
 void display(void);
 void timer(int value);
 void Initialize();
@@ -93,28 +98,52 @@ void reshape(int w, int h)
     glMatrixMode(GL_MODELVIEW);
 }
 void draw()
-{	
+{
     glPushMatrix();
     glTranslatef(mov.x, mov.y, mov.z);
     glColor3f(1.0, 0.23, 0.27);
     glScalef(scale, scale, 0.4);
-    if (!(vr.x == 0 && vr.y == 0 && vr.z == 0)) 
+    if (!(vr.x == 0 && vr.y == 0 && vr.z == 0))
     {
         glRotatef(rot, vr.x, vr.y, vr.z);
-        if(rotating) rot = rot + 0.6;
+        if (rotating) rot = rot + 0.6;
         if (rot > 360) rot = rot - 360;
     }
-    //gluLookAt(0, 0, 0, 0 + cam.x, 0 + cam.y, 100 + cam.z, 0, 40, 0
     glCallList(_model);
     glPopMatrix();
     glEnd();
 
 }
+void light() {
+
+    static bool prevSpotlight = spotlight;
+
+    if (prevSpotlight != spotlight)
+    {
+        prevSpotlight = spotlight;
+        if (!spotlight) printf("Entering LIGHT mode\r\n");
+        else printf("Entering SPOTLIGHT mode\r\n");
+    }
+
+    for (uint8_t i = 0; i < sizeof(activeLights); i++)
+    {
+        if (activeLights[i]) {
+            glEnable(GL_LIGHT0 + i);
+            glLightfv(GL_LIGHT0 + i, GL_POSITION, _light_position);
+        }
+        else {
+            glDisable(GL_LIGHT0 + i);
+        }
+    }
+}
+
+
 void display(void)
 {
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
+    light();
     draw();
     glutSwapBuffers();
 }
@@ -136,42 +165,55 @@ void Initialize() {
     //Ativa o uso de luz
     glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, GL_TRUE);
     glEnable(GL_LIGHTING);
-    glEnable(GL_LIGHT0);
-    glEnable(GL_LIGHT1);
-    
+    //   glEnable(GL_LIGHT0);
+    //   glEnable(GL_LIGHT1);
+    //   
 
-    // determina a intensidade e cor da luz
-    //GLfloat lightAmbient[] = { 0.2, 0.2, 0.2, 1.0 }; // cinza
-    //GLfloat lightDiffuse[] = { 0.8, 0.8, 0.8, 1.0 }; // cinza claro
-    GLfloat lightDiffuse[] = { 1.0f, 1.0f, 0.0f, 1.0f };    //yellow diffuse : color where light hit directly the object's surface
-    GLfloat lightAmbient[] = { 1.0f, 0.0f, 0.0f, 1.0f };    //red ambient : color applied everywhere
-    GLfloat luz_especular[] = { 1.0, 1.0, 1.0, 1.0 }; // branco
+    //   // determina a intensidade e cor da luz
+    //   GLfloat lightDiffuse[] = { 1.0f, 1.0f, 0.0f, 1.0f };    //yellow diffuse : color where light hit directly the object's surface
+    //   GLfloat lightAmbient[] = { 1.0f, 0.0f, 0.0f, 1.0f };    //red ambient : color applied everywhere
+    //   GLfloat luz_especular[] = { 1.0, 1.0, 1.0, 1.0 }; // branco
 
-    glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDiffuse);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, luz_especular);
+    //   glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
+    //   glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDiffuse);
+    //   glLightfv(GL_LIGHT0, GL_SPECULAR, luz_especular);
 
-    GLfloat l1LightAmbient[] = { 0.2, 0.2, 0.2, 1.0 };
-	GLfloat l1LightDiffuse[] = { 0.8, 0.8, 0.8, 1.0 };
-	GLfloat l1LightSpecular[] = { 1.0, 1.0, 1.0, 1.0 };
-	GLfloat l1LightPosition[] = { -2.0, 2.0, 1.0, 1.0 };
-	GLfloat l1LightDirection[] = { -1.0, -1.0, 0.0 };
-	
-	glLightfv(GL_LIGHT1, GL_AMBIENT, l1LightAmbient);
-	glLightfv(GL_LIGHT1, GL_DIFFUSE, l1LightDiffuse);
-	glLightfv(GL_LIGHT1, GL_SPECULAR, l1LightSpecular);
-	glLightfv(GL_LIGHT1, GL_POSITION, l1LightPosition);
-	glLightfv(GL_LIGHT1, GL_SPOT_DIRECTION, l1LightDirection);
-	glLightf(GL_LIGHT1, GL_SPOT_CUTOFF, 45.0);
-	glLightf(GL_LIGHT1, GL_SPOT_EXPONENT, 0.0);
-	
+       ////determina a posição da luz
+       //GLfloat posicao_luz[] = { .5, .5, 0.0, 1.0 };
+       //glLightfv(GL_LIGHT0, GL_POSITION, posicao_luz);
 
-    //determina a posição da luz
-    GLfloat posicao_luz[] = { .5, .5, 0.0, 1.0 };
-    glLightfv(GL_LIGHT0, GL_POSITION, posicao_luz);
-    
+    //   GLfloat l1LightAmbient[] = { 0.2, 0.2, 0.2, 1.0 };
+       //GLfloat l1LightDiffuse[] = { 0.8, 0.8, 0.8, 1.0 };
+       //GLfloat l1LightSpecular[] = { 1.0, 1.0, 1.0, 1.0 };
+       //GLfloat l1LightPosition[] = { 2.0, 2.0, 1.0, 1.0 };
+       //GLfloat l1LightDirection[] = { -1.0, -1.0, 0.0 };
+       //
+       //glLightfv(GL_LIGHT1, GL_AMBIENT, l1LightAmbient);
+       //glLightfv(GL_LIGHT1, GL_DIFFUSE, l1LightDiffuse);
+       //glLightfv(GL_LIGHT1, GL_SPECULAR, l1LightSpecular);
+       //glLightfv(GL_LIGHT1, GL_POSITION, l1LightPosition);
+       //glLightfv(GL_LIGHT1, GL_SPOT_DIRECTION, l1LightDirection);
+       //glLightf(GL_LIGHT1, GL_SPOT_CUTOFF, 45.0);
+       //glLightf(GL_LIGHT1, GL_SPOT_EXPONENT, 0.0);
+    GLfloat light_ambient[] = { 1.0f, 1.0f, 0.0f, 1.0f };
+    GLfloat light_diffuse[] = { 1.0f, 0.0f, 0.0f, 1.0f };
+    GLfloat light_specular[] = { 0.0, 0.5, 1.0, 1.0 };
+    _light_position[0] = 0.0;
+    _light_position[1] = 1.0;
+    _light_position[2] = 0.0;
+    _light_position[3] = 0.0;
 
-    
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    /*glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);*/
+
+    //glLightfv(GL_LIGHT1, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, light_diffuse);
+    //glLightfv(GL_LIGHT1, GL_SPECULAR, light_specular);
+
+    //glLightfv(GL_LIGHT2, GL_AMBIENT, light_ambient);
+    //glLightfv(GL_LIGHT2, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT2, GL_SPECULAR, light_specular);
 }
 
 
@@ -230,17 +272,16 @@ void createList() {
         glBegin(GL_TRIANGLES);
         for (int i = 0; i < faces.size(); i++) {
             for (int j = 0; j < 3; j++) {
-				vec3 vertex = vertices[faces[i][j].v];
-				vec3 normal = normals[faces[i][j].n];
-				glVertex3f(vertex.x, vertex.y, vertex.z);
+                vec3 vertex = vertices[faces[i][j].v];
+                vec3 normal = normals[faces[i][j].n];
+                glVertex3f(vertex.x, vertex.y, vertex.z);
                 glNormal3f(normal.x, normal.y, normal.z);
 
-				//texture can not 
                 if (faces[i][j].t != 0) {
                     vec2 texture = textCoords[faces[i][j].t];
                     glTexCoord2f(texture.x, texture.y);
                 }
-			}
+            }
         }
         glEnd();
         glPopMatrix();
@@ -301,51 +342,86 @@ void loadObj(std::string fileName) {
 
 void keyboard(unsigned char key, int x, int y) {
     //std::cout << key;
+
+    static constexpr float modifier = 0.01;
+
     switch (key) {
     case 27:
         exit(0);
         break;
     case 's':
         if (actual == mode(0)) cam.y = cam.y - 10;
-        else if(actual == mode(1)) mov.y = mov.y - 10;
-        else if (actual == mode(2)) vr.y = vr.y > 1 ? vr.y : vr.y + 0.1;
+        else if (actual == mode(1)) mov.y = mov.y - 10;
+        else if (actual == mode(2)) vr.y = vr.y > 1 ? vr.y : vr.y + modifier;
+        else if (actual == mode(3)) _spotlight_position[1] -= modifier;
+        else if (actual == mode(4)) _light_position[1] -= modifier;
         break;
     case 'w':
         if (actual == mode(0)) cam.y = cam.y + 10;
         else if (actual == mode(1)) mov.y = mov.y + 10;
-		else if (actual == mode(2)) vr.y = vr.y < -1 ? vr.y : vr.y - 0.1;
+        else if (actual == mode(2)) vr.y = vr.y < -1 ? vr.y : vr.y - modifier;
+        else if (actual == mode(3)) _spotlight_position[1] += modifier;
+        else if (actual == mode(4)) _light_position[1] += modifier;
         break;
     case 'a':
         if (actual == mode(0)) cam.x = cam.x - 10;
         else if (actual == mode(1)) mov.x = mov.x - 10;
-		else if (actual == mode(2)) vr.x = vr.x > 1 ? vr.x : vr.x + 0.1;
+        else if (actual == mode(2)) vr.x = vr.x > 1 ? vr.x : vr.x + modifier;
+        else if (actual == mode(3)) _spotlight_position[0] -= modifier;
+        else if (actual == mode(4)) _light_position[0] -= modifier;
         break;
     case 'd':
         if (actual == mode(0)) cam.x = cam.x + 10;
         else if (actual == mode(1)) mov.x = mov.x + 10;
-		else if (actual == mode(2)) vr.x = vr.x < -1 ? vr.x : vr.x - 0.1;
+        else if (actual == mode(2)) vr.x = vr.x < -1 ? vr.x : vr.x - modifier;
+        else if (actual == mode(3)) _spotlight_position[0] += modifier;
+        else if (actual == mode(4)) _light_position[0] += modifier;
         break;
     case 'f':
-		if (actual == mode(0)) cam.z = cam.z - 10;
-		else if(actual == mode(1)) mov.z = mov.z - 10;
-		else if (actual == mode(2)) vr.z = vr.z > 1 ? vr.z : vr.z + 0.1;
-		break;
+        if (actual == mode(0)) cam.z = cam.z - 10;
+        else if (actual == mode(1)) mov.z = mov.z - 10;
+        else if (actual == mode(2)) vr.z = vr.z > 1 ? vr.z : vr.z + modifier;
+        else if (actual == mode(3)) _spotlight_position[2] -= modifier;
+        else if (actual == mode(4)) _light_position[2] -= modifier;
+        break;
     case 'g':
-		if (actual == mode(0)) cam.z = cam.z + 10;
-		else if (actual == mode(1)) mov.z = mov.z + 10;
-		else if (actual == mode(2)) vr.z = vr.z < -1 ? vr.z : vr.z - 0.1;
-		break;
+        if (actual == mode(0)) cam.z = cam.z + 10;
+        else if (actual == mode(1)) mov.z = mov.z + 10;
+        else if (actual == mode(2)) vr.z = vr.z < -1 ? vr.z : vr.z - modifier;
+        else if (actual == mode(3)) _spotlight_position[2] += modifier;
+        else if (actual == mode(4)) _light_position[2] += modifier;
+        break;
+    case 'k':
+        if (actual == mode(4)) _light_position[3] -= modifier;
+        break;
+    case 'i':
+        if (actual == mode(4)) _light_position[3] += modifier;
+        break;
     case 'q':
         if (actual == mode(0)) actual = mode(1);
         else if (actual == mode(1)) actual = mode(2);
-		else actual = mode(1);
-        cout <<"actual mode is "<< actual << endl;
+        else if (actual == mode(2)) actual = mode(3);
+        else if (actual == mode(3)) actual = mode(4);
+        else actual = mode(1);
+        cout << "actual mode is " << actual << endl;
         break;
     case 'r':
-		rotating = !rotating;
+        rotating = !rotating;
+        break;
+    case '1':
+        activeLights[0] = !activeLights[0];
+        break;
+    case '2':
+        activeLights[1] = !activeLights[1];
+        break;
+    case '3':
+        activeLights[2] = !activeLights[2];
         break;
     case ' ':
         scale = scale + 0.2;
         break;
     }
+    if (key == '1' || key == '2' || key == '3') cout << "Active Lights: " << activeLights[0] << ", " << activeLights[1] << ", " << activeLights[2] << "." << endl;
+    if (actual == mode(3)) printf("x: %f | y: %f | z: %f\r\n", _spotlight_position[0], _spotlight_position[1], _spotlight_position[2]);
+    if (actual == mode(4)) printf("x: %f | y: %f | z: %f | ???: %f\r\n", _light_position[0], _light_position[1], _light_position[2], _light_position[3]);
 }
